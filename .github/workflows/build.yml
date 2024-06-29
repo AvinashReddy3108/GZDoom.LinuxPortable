@@ -1,0 +1,89 @@
+name: "Build GZDoom"
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * *"
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: 🛒 Checkout repository
+        id: checkout
+        uses: actions/checkout@v4
+        with:
+          # We need this for the 'check_tag' step.
+          fetch-depth: 0
+
+      - name: 🔍 Determine latest GZDoom Stable version
+        id: versions
+        run: |
+          LATEST_STABLE="$(curl -sL "https://api.github.com/repos/zdoom/gzdoom/releases" | jq -r '.[0].tag_name')"
+          echo "latest=$LATEST_STABLE" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: ❓ Check if we already built this version
+        id: check_tag
+        run: |
+          if git rev-parse --verify --quiet "refs/tags/${{ steps.versions.outputs.latest }}"; then
+            echo "Tag already exists, we can exit early!"; echo "tag_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "Tag does not exist, let's get cracking!"; echo "tag_exists=false" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+
+      - name: 🗃️ [ZMusic] Fetch the source code
+        if: steps.check_tag.outputs.tag_exists == 'false'
+        uses: actions/checkout@v4
+        with:
+          repository: 'ZDoom/ZMusic'
+          path: 'parts/zmusic/source_code'
+
+      - name: 🗃️ [GZDoom] Fetch the source code
+        if: steps.check_tag.outputs.tag_exists == 'false'
+        uses: actions/checkout@v4
+        with:
+          repository: 'ZDoom/gzdoom'
+          ref: ${{ steps.versions.outputs.latest }}
+          path: 'gzdoom/source_code'
+
+      - name: 🏗️ Build
+        if: steps.check_tag.outputs.tag_exists == 'false'
+        uses: ./.github/actions/buildbox
+
+      - name: 📦️ Pack
+        if: steps.check_tag.outputs.tag_exists == 'false'
+        run: |
+          mkdir -pv out
+
+          cp "gzdoom/source_code/build/gzdoom" out/
+          cp "gzdoom/source_code/build/*.pk3" out/
+
+          ldd "out/gzdoom" | awk 'NF == 4 { system("cp " $3 " out/") }'
+          cp "/lib/x86_64-linux-gnu/libopenal.so.1" out/
+
+          cp -R "gzdoom/source_code/build/soundfonts/" "out/soundfonts"
+          cp -R "gzdoom/source_code/build/fm_banks/" "out/fm_banks"
+
+          7z a -t7z -m0=lzma -mx=9 -mfb=64 -md=32m -ms=on "GZDoom.LinuxPortable-${{ steps.versions.outputs.latest }}.7z" ./out/*
+        shell: bash
+
+      - name: 🚚 Ship
+        if: steps.check_tag.outputs.tag_exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.versions.outputs.latest }}
+          name: "${{ steps.versions.outputs.latest }}"
+          body: |
+            ![GZDoom](https://github.com/AvinashReddy3108/GZDoom.LinuxPortable/assets/27774996/f313e76b-9606-4e08-ab68-1ba943754310)
+
+            Read the changelog: https://github.com/ZDoom/gzdoom/releases/tag/${{ steps.versions.outputs.latest }}
+
+            # Notes
+            - The GTK+ based GUI has been stripped out (flags: `NO_GTK=ON`) in favor of using shell scripts (refer the [ZDoom Wiki](https://zdoom.org/wiki/Command_line_parameters) on CLI parameters) or a [third party launcher](https://zdoom.org/wiki/Frontend))_ to launch the games.
+          files: GZDoom.LinuxPortable-${{ steps.versions.outputs.latest }}.7z
