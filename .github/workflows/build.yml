@@ -56,21 +56,17 @@ jobs:
         if: steps.check_tag.outputs.tag_exists == 'false'
         uses: ./.github/actions/buildbox
 
-      - name: 📦️ Pack
+      - name: 📦️ Archive package
         if: steps.check_tag.outputs.tag_exists == 'false'
         run: |
-          mkdir -pv out
-
-          cp "gzdoom/source_code/build/gzdoom" out/
-          cp "gzdoom/source_code/build/*.pk3" out/
-
-          ldd "out/gzdoom" | awk 'NF == 4 { system("cp " $3 " out/") }'
-          cp "/lib/x86_64-linux-gnu/libopenal.so.1" out/
-
-          cp -R "gzdoom/source_code/build/soundfonts/" "out/soundfonts"
-          cp -R "gzdoom/source_code/build/fm_banks/" "out/fm_banks"
-
-          7z a -t7z -m0=lzma -mx=9 -mfb=64 -md=32m -ms=on "GZDoom.LinuxPortable-${{ steps.versions.outputs.latest }}.7z" ./out/*
+          7z a \
+            -t7z \
+            -m0=lzma \
+            -mx=9 \
+            -mfb=64 \
+            -md=32m \
+            -ms=on \
+            "GZDoom.LinuxPortable_${{ steps.versions.outputs.latest }}.7z" ./out/*
         shell: bash
 
       - name: 🚚 Ship
@@ -85,5 +81,7 @@ jobs:
             Read the changelog: https://github.com/ZDoom/gzdoom/releases/tag/${{ steps.versions.outputs.latest }}
 
             # Notes
-            - The GTK+ based GUI has been stripped out (flags: `NO_GTK=ON`) in favor of using shell scripts (refer the [ZDoom Wiki](https://zdoom.org/wiki/Command_line_parameters) on CLI parameters) or a [third party launcher](https://zdoom.org/wiki/Frontend))_ to launch the games.
-          files: GZDoom.LinuxPortable-${{ steps.versions.outputs.latest }}.7z
+            - The GTK+ based GUI components have been stripped out (flags: `NO_GTK=ON`) in favor of using shell scripts or external utilities to launch the games.
+                - For shell scripts, check the available [CLI Parameters](https://zdoom.org/wiki/Command_line_parameters).
+                - Alternatively, [community made utilities](https://zdoom.org/wiki/Frontend) can be used.
+          files: GZDoom.LinuxPortable_${{ steps.versions.outputs.latest }}.7z
