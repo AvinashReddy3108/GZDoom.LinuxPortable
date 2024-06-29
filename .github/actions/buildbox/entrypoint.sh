@@ -20,7 +20,7 @@ cd "${OLDPWD}"
 mkdir -pv gzdoom/source_code/build
 
 # Build
-cd parts/gzdoom/source_code/build
+cd gzdoom/source_code/build
 cmake .. -DNO_GTK=ON -DCMAKE_BUILD_TYPE=Release && make
 
 # ========================
